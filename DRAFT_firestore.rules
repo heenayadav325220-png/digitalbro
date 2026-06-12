@@ -1,0 +1,114 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net Default-Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitives definitions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation blueprints for User
+    function isValidUser(data) {
+      return data.keys().hasAll(['userId', 'email', 'createdAt'])
+        && data.keys().size() == 3
+        && data.userId == request.auth.uid
+        && data.email is string
+        && data.email.size() <= 200
+        && data.createdAt is string; // e.g. ISO string or server timestamp
+    }
+
+    // Validation blueprints for ChatSession
+    function isValidChatSession(data) {
+      return data.keys().hasAll(['id', 'userId', 'title', 'createdAt', 'model'])
+        && (
+          data.keys().size() == 5 || 
+          (data.keys().size() == 6 && (data.keys().hasAll(['systemInstruction']) || data.keys().hasAll(['temperature']))) || 
+          (data.keys().size() == 7 && data.keys().hasAll(['systemInstruction', 'temperature']))
+        )
+        && data.id is string
+        && data.id.size() <= 128
+        && data.userId == request.auth.uid
+        && data.title is string
+        && data.title.size() <= 200
+        && data.createdAt is number
+        && data.model is string
+        && data.model.size() <= 100
+        && (!data.keys().hasAll(['systemInstruction']) || (data.systemInstruction is string && data.systemInstruction.size() <= 5000))
+        && (!data.keys().hasAll(['temperature']) || (data.temperature is number && data.temperature >= 0.0 && data.temperature <= 2.0));
+    }
+
+    // Validation blueprints for Message
+    function isValidMessage(data) {
+      return data.keys().hasAll(['id', 'role', 'content', 'timestamp'])
+        && (data.keys().size() == 4 || (data.keys().size() == 5 && data.keys().hasAll(['attachment'])))
+        && data.id is string
+        && data.id.size() <= 128
+        && (data.role == 'user' || data.role == 'assistant')
+        && data.content is string
+        && data.content.size() <= 150000
+        && data.timestamp is number
+        && (!data.keys().hasAll(['attachment']) || (
+             data.attachment.keys().hasAll(['data', 'mimeType'])
+             && data.attachment.keys().size() == 2
+             && data.attachment.data is string
+             && data.attachment.data.size() <= 8000000
+             && data.attachment.mimeType is string
+             && data.attachment.mimeType.size() <= 100
+           ));
+    }
+
+    // Match Rules for profile & hierarchy
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) 
+                    && isValidUser(incoming())
+                    && incoming().email == existing().email
+                    && incoming().createdAt == existing().createdAt;
+      allow delete: if false;
+
+      match /sessions/{sessionId} {
+        allow get: if isOwner(userId) && isValidId(sessionId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(sessionId) && isValidChatSession(incoming());
+        allow update: if isOwner(userId) 
+                      && isValidId(sessionId)
+                      && isValidChatSession(incoming())
+                      && incoming().id == existing().id
+                      && incoming().userId == existing().userId
+                      && incoming().createdAt == existing().createdAt
+                      && (incoming().diff(existing()).affectedKeys().hasOnly(['title', 'systemInstruction', 'temperature', 'model']));
+        allow delete: if isOwner(userId) && isValidId(sessionId);
+
+        match /messages/{messageId} {
+          allow get: if isOwner(userId) && isValidId(sessionId) && isValidId(messageId);
+          allow list: if isOwner(userId) && isValidId(sessionId);
+          allow create: if isOwner(userId) && isValidId(sessionId) && isValidId(messageId) && isValidMessage(incoming());
+          allow update: if false; // Messages are historical and immutable 
+          allow delete: if isOwner(userId) && isValidId(sessionId) && isValidId(messageId);
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Digital Bro - AI Chatbot",
+  "description": "Digital Bro is an extremely intelligent, logical, brutal-honest Business Partner that critically analyzes startup plans and dreams with sharp, street-smart counterarguments in friendly, conversational Hindi.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

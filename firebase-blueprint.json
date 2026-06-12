@@ -1,0 +1,106 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Information about the registered user",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The unique UID from Firebase Auth"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The primary email address of the user"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when user registered (server timestamp)"
+        }
+      },
+      "required": ["userId", "email", "createdAt"]
+    },
+    "ChatSession": {
+      "title": "ChatSession",
+      "description": "Represents an individual chat session",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string",
+          "description": "The owner's UID"
+        },
+        "title": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "systemInstruction": {
+          "type": "string"
+        },
+        "temperature": {
+          "type": "number"
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "userId", "title", "createdAt", "model"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Stores individual messages from a chat session",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "assistant"]
+        },
+        "content": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "attachment": {
+          "type": "object",
+          "properties": {
+            "data": {
+              "type": "string",
+              "description": "Base64 image representation"
+            },
+            "mimeType": {
+              "type": "string"
+            }
+          },
+          "required": ["data", "mimeType"]
+        }
+      },
+      "required": ["id", "role", "content", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "The user profile information"
+    },
+    "/users/{userId}/sessions/{sessionId}": {
+      "schema": "ChatSession",
+      "description": "All chat sessions created by this user"
+    },
+    "/users/{userId}/sessions/{sessionId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Historical message logs in a specific chat session"
+    }
+  }
+}
